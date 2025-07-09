@@ -10,7 +10,9 @@ import 'package:lottie/lottie.dart';
 import '../../../core/constants.dart';
 import '../../../data/models/user.dart';
 import '../../../data/models/lesson.dart';
+import '../../../data/models/subscription.dart';
 import '../../common/widgets/glassmorphic_widgets.dart';
+import '../../subscription/pages/pricing_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({Key? key}) : super(key: key);
@@ -34,11 +36,15 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
     gradeLevel: 'primary_4_7',
     preferredLanguage: 'en',
     region: 'harare',
-    subscription: UserSubscription.free,
+    subscription: UserSubscription.basic, // Updated from free to basic
     preferences: const UserPreferences(),
     createdAt: DateTime.now().subtract(const Duration(days: 30)),
     updatedAt: DateTime.now(),
   );
+  
+  // Mock subscription data - would come from SubscriptionBloc in production
+  final Subscription _currentSubscription = Subscription.basicPlan;
+  final DateTime _subscriptionEndDate = DateTime.now().add(const Duration(days: 15));
   
   final List<Map<String, dynamic>> _subjects = [
     {
@@ -99,6 +105,12 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
   
   final List<Map<String, dynamic>> _quickActions = [
     {
+      'id': 'upgrade',
+      'name': 'Upgrade Plan',
+      'icon': Icons.workspace_premium,
+      'color': const Color(0xFFFFD700), // Yellow/Gold
+    },
+    {
       'id': 'offline',
       'name': 'Download Content',
       'icon': Icons.download_for_offline,
@@ -108,18 +120,12 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       'id': 'business',
       'name': 'Business Simulation',
       'icon': Icons.store,
-      'color': const Color(0xFFFFD700), // Yellow
+      'color': const Color(0xFFCE1126), // Red
     },
     {
       'id': 'ai_tutor',
       'name': 'AI Tutor',
       'icon': Icons.smart_toy,
-      'color': const Color(0xFFCE1126), // Red
-    },
-    {
-      'id': 'games',
-      'name': 'Educational Games',
-      'icon': Icons.sports_esports,
       'color': const Color(0xFF2196F3), // Blue
     },
   ];
@@ -195,7 +201,8 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
           const SizedBox(width: 8),
           GestureDetector(
             onTap: () {
-              // Navigate to profile
+              // Navigate to profile with subscription options
+              _showProfileOptions(context);
             },
             child: CircleAvatar(
               radius: 16,
@@ -227,6 +234,11 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
               // Greeting Section
               SliverToBoxAdapter(
                 child: _buildGreetingSection(theme),
+              ),
+              
+              // Subscription Status Card
+              SliverToBoxAdapter(
+                child: _buildSubscriptionStatusCard(theme),
               ),
               
               // Progress Overview
@@ -418,6 +430,170 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
             ),
           ),
         ],
+      ),
+    );
+  }
+  
+  // New subscription status card
+  Widget _buildSubscriptionStatusCard(ThemeData theme) {
+    final daysRemaining = _subscriptionEndDate.difference(DateTime.now()).inDays;
+    
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: GlassmorphicCard(
+        height: 120,
+        color: theme.colorScheme.secondary.withOpacity(0.2),
+        border: Border.all(
+          color: theme.colorScheme.secondary.withOpacity(0.5),
+          width: 1,
+        ),
+        child: Stack(
+          children: [
+            // Premium badge for premium subscribers
+            if (_currentSubscription.tier == SubscriptionTier.premium)
+              Positioned(
+                top: -8,
+                right: 16,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.secondary,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.star,
+                        color: Colors.black,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'PREMIUM',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  // Subscription icon and info
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.workspace_premium,
+                              color: theme.colorScheme.secondary,
+                              size: 24,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Current Plan: ${_currentSubscription.name}',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Expires in $daysRemaining days',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: Colors.white70,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '\$${_currentSubscription.monthlyPrice.toStringAsFixed(2)}/month',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.secondary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  // Upgrade button
+                  Expanded(
+                    flex: 2,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (_currentSubscription.tier != SubscriptionTier.premium)
+                          AnimatedGlassmorphicButton(
+                            height: 40,
+                            color: theme.colorScheme.secondary,
+                            onPressed: () {
+                              // Navigate to pricing page
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const PricingPage(),
+                                ),
+                              );
+                            },
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.upgrade,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Upgrade',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        if (_currentSubscription.tier == SubscriptionTier.premium)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              'Highest Tier',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -698,6 +874,15 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
           child: BouncingWidget(
             onTap: () {
               // Handle quick action
+              if (action['id'] == 'upgrade') {
+                // Navigate to pricing page
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PricingPage(),
+                  ),
+                );
+              }
             },
             child: GlassmorphicCard(
               width: 100,
@@ -961,6 +1146,9 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                 label: 'Profile',
                 isSelected: false,
                 theme: theme,
+                onTap: () {
+                  _showProfileOptions(context);
+                },
               ),
             ],
           ),
@@ -974,9 +1162,10 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
     required String label,
     required bool isSelected,
     required ThemeData theme,
+    VoidCallback? onTap,
   }) {
     return BouncingWidget(
-      onTap: () {
+      onTap: onTap ?? () {
         // Navigate to tab
       },
       child: Column(
@@ -1022,6 +1211,212 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
             },
             errorBuilder: (context, error, stackTrace) => 
               const Center(child: Icon(Icons.celebration, color: Colors.white, size: 64)),
+          ),
+        ),
+      ),
+    );
+  }
+  
+  // Profile options dialog with subscription options
+  void _showProfileOptions(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+        child: Container(
+          height: MediaQuery.of(context).size.height * 0.6,
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.8),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.1),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              // Handle
+              Container(
+                margin: const EdgeInsets.only(top: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              
+              // User info
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 30,
+                      backgroundColor: theme.colorScheme.primary,
+                      child: Text(
+                        _mockUser.firstName?.substring(0, 1) ?? 'U',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${_mockUser.firstName} ${_mockUser.lastName}',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            _mockUser.email ?? '',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: Colors.white70,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.workspace_premium,
+                                color: theme.colorScheme.secondary,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${_currentSubscription.name} Plan',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.secondary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              const Divider(color: Colors.white12),
+              
+              // Subscription option
+              ListTile(
+                leading: Icon(
+                  Icons.card_membership,
+                  color: theme.colorScheme.secondary,
+                ),
+                title: const Text(
+                  'Manage Subscription',
+                  style: TextStyle(color: Colors.white),
+                ),
+                subtitle: Text(
+                  'Change or upgrade your plan',
+                  style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                ),
+                trailing: const Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white54,
+                  size: 16,
+                ),
+                onTap: () {
+                  Navigator.pop(context); // Close bottom sheet
+                  // Navigate to pricing page
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const PricingPage(),
+                    ),
+                  );
+                },
+              ),
+              
+              // Other profile options
+              ListTile(
+                leading: const Icon(
+                  Icons.settings,
+                  color: Colors.white70,
+                ),
+                title: const Text(
+                  'Settings',
+                  style: TextStyle(color: Colors.white),
+                ),
+                trailing: const Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white54,
+                  size: 16,
+                ),
+                onTap: () {
+                  // Navigate to settings
+                  Navigator.pop(context);
+                },
+              ),
+              
+              ListTile(
+                leading: const Icon(
+                  Icons.help_outline,
+                  color: Colors.white70,
+                ),
+                title: const Text(
+                  'Help & Support',
+                  style: TextStyle(color: Colors.white),
+                ),
+                trailing: const Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white54,
+                  size: 16,
+                ),
+                onTap: () {
+                  // Navigate to help
+                  Navigator.pop(context);
+                },
+              ),
+              
+              const Spacer(),
+              
+              // Logout button
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: AnimatedGlassmorphicButton(
+                  onPressed: () {
+                    // Logout
+                    Navigator.pop(context);
+                  },
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.logout,
+                        color: Colors.white,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        'Logout',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
