@@ -8,12 +8,16 @@ import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:lottie/lottie.dart';
 
 import '../../../core/constants.dart';
+import '../../../core/services/service_locator.dart';
 import '../../../data/models/user.dart';
 import '../../../data/models/lesson.dart';
 import '../../../data/models/subscription.dart';
+import '../../../data/models/quiz.dart';
 import '../../common/widgets/glassmorphic_widgets.dart';
 import '../../subscription/pages/pricing_page.dart';
 import '../../lessons/pages/lesson_detail_page.dart';
+import '../../quiz/pages/quiz_detail_page.dart';
+import '../../quiz/bloc/quiz_bloc.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({Key? key}) : super(key: key);
@@ -104,7 +108,14 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
     },
   ];
   
+  // Updated quick actions to include quiz
   final List<Map<String, dynamic>> _quickActions = [
+    {
+      'id': 'quiz',
+      'name': 'Take Quiz',
+      'icon': Icons.quiz,
+      'color': const Color(0xFFCE1126), // Red
+    },
     {
       'id': 'upgrade',
       'name': 'Upgrade Plan',
@@ -121,13 +132,50 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       'id': 'business',
       'name': 'Business Simulation',
       'icon': Icons.store,
-      'color': const Color(0xFFCE1126), // Red
+      'color': const Color(0xFF2196F3), // Blue
     },
     {
       'id': 'ai_tutor',
       'name': 'AI Tutor',
       'icon': Icons.smart_toy,
-      'color': const Color(0xFF2196F3), // Blue
+      'color': const Color(0xFF9C27B0), // Purple
+    },
+  ];
+  
+  // Mock quizzes data
+  final List<Map<String, dynamic>> _availableQuizzes = [
+    {
+      'id': 'mathematics_primary_4_7_quiz_1',
+      'title': 'Mathematics Quiz 1',
+      'subject': 'Mathematics',
+      'difficulty': QuizDifficulty.easy,
+      'questionCount': 7,
+      'timeLimit': 210, // seconds
+      'color': const Color(0xFF008751), // Green
+      'progress': 0.0,
+      'attempts': 0,
+    },
+    {
+      'id': 'english_primary_4_7_quiz_1',
+      'title': 'English Quiz 1',
+      'subject': 'English',
+      'difficulty': QuizDifficulty.easy,
+      'questionCount': 7,
+      'timeLimit': 210, // seconds
+      'color': const Color(0xFFFFD700), // Yellow
+      'progress': 0.3,
+      'attempts': 1,
+    },
+    {
+      'id': 'science_primary_4_7_quiz_2',
+      'title': 'Science Quiz 2',
+      'subject': 'Science',
+      'difficulty': QuizDifficulty.medium,
+      'questionCount': 9,
+      'timeLimit': 270, // seconds
+      'color': const Color(0xFFCE1126), // Red
+      'progress': 0.7,
+      'attempts': 2,
     },
   ];
   
@@ -189,190 +237,200 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
     final size = MediaQuery.of(context).size;
     final isTablet = size.width > 600;
     
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: GlassmorphicAppBar(
-        title: _isScrolled ? 'ZimLearn' : '',
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-            onPressed: () {},
-          ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () {
-              // Navigate to profile with subscription options
-              _showProfileOptions(context);
-            },
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor: theme.colorScheme.primary,
-              child: Text(
-                _mockUser.firstName?.substring(0, 1) ?? 'U',
-                style: const TextStyle(color: Colors.white),
+    return BlocProvider(
+      create: (context) => sl<QuizBloc>()..add(LoadQuizzes(
+        gradeLevel: _mockUser.gradeLevel,
+      )),
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        appBar: GlassmorphicAppBar(
+          title: _isScrolled ? 'ZimLearn' : '',
+          centerTitle: true,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+              onPressed: () {},
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () {
+                // Navigate to profile with subscription options
+                _showProfileOptions(context);
+              },
+              child: CircleAvatar(
+                radius: 16,
+                backgroundColor: theme.colorScheme.primary,
+                child: Text(
+                  _mockUser.firstName?.substring(0, 1) ?? 'U',
+                  style: const TextStyle(color: Colors.white),
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              const Color(0xFF008751).withOpacity(0.8), // Green (Zimbabwe flag)
-              const Color(0xFF000000).withOpacity(0.9), // Black (Zimbabwe flag)
-            ],
-          ),
+          ],
         ),
-        child: SafeArea(
-          child: CustomScrollView(
-            controller: _scrollController,
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              // Greeting Section
-              SliverToBoxAdapter(
-                child: _buildGreetingSection(theme),
-              ),
-              
-              // Subscription Status Card
-              SliverToBoxAdapter(
-                child: _buildSubscriptionStatusCard(theme),
-              ),
-              
-              // Progress Overview
-              SliverToBoxAdapter(
-                child: _buildProgressOverview(theme),
-              ),
-              
-              // Subject Cards
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Row(
-                    children: [
-                      Text(
-                        'Your Subjects',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                const Color(0xFF008751).withOpacity(0.8), // Green (Zimbabwe flag)
+                const Color(0xFF000000).withOpacity(0.9), // Black (Zimbabwe flag)
+              ],
+            ),
+          ),
+          child: SafeArea(
+            child: CustomScrollView(
+              controller: _scrollController,
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                // Greeting Section
+                SliverToBoxAdapter(
+                  child: _buildGreetingSection(theme),
+                ),
+                
+                // Subscription Status Card
+                SliverToBoxAdapter(
+                  child: _buildSubscriptionStatusCard(theme),
+                ),
+                
+                // Progress Overview
+                SliverToBoxAdapter(
+                  child: _buildProgressOverview(theme),
+                ),
+                
+                // Subject Cards
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Row(
+                      children: [
+                        Text(
+                          'Your Subjects',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: () {},
-                        child: Text(
-                          'See All',
-                          style: TextStyle(color: theme.colorScheme.secondary),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () {},
+                          child: Text(
+                            'See All',
+                            style: TextStyle(color: theme.colorScheme.secondary),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                sliver: SliverGrid(
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: isTablet ? 3 : 2,
-                    childAspectRatio: 1.2,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  sliver: SliverGrid(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: isTablet ? 3 : 2,
+                      childAspectRatio: 1.2,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final subject = _subjects[index];
+                        return _buildSubjectCard(subject, theme, index);
+                      },
+                      childCount: _subjects.length,
+                    ),
                   ),
+                ),
+                
+                // Assessment & Quizzes Section
+                SliverToBoxAdapter(
+                  child: _buildQuizSection(theme),
+                ),
+                
+                // Quick Actions
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+                    child: Text(
+                      'Quick Actions',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 100,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _quickActions.length,
+                      itemBuilder: (context, index) {
+                        final action = _quickActions[index];
+                        return _buildQuickActionCard(action, theme, index);
+                      },
+                    ),
+                  ),
+                ),
+                
+                // Recent Lessons
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+                    child: Text(
+                      'Continue Learning',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
-                      final subject = _subjects[index];
-                      return _buildSubjectCard(subject, theme, index);
+                      final lesson = _recentLessons[index];
+                      return _buildRecentLessonCard(lesson, theme, index);
                     },
-                    childCount: _subjects.length,
+                    childCount: _recentLessons.length,
                   ),
                 ),
-              ),
-              
-              // Quick Actions
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-                  child: Text(
-                    'Quick Actions',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+                
+                // Special Section for Younger Children
+                if (_isYoungerChild) ...[
+                  SliverToBoxAdapter(
+                    child: _buildKidsSection(theme),
                   ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 100,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _quickActions.length,
-                    itemBuilder: (context, index) {
-                      final action = _quickActions[index];
-                      return _buildQuickActionCard(action, theme, index);
-                    },
-                  ),
-                ),
-              ),
-              
-              // Recent Lessons
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-                  child: Text(
-                    'Continue Learning',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final lesson = _recentLessons[index];
-                    return _buildRecentLessonCard(lesson, theme, index);
-                  },
-                  childCount: _recentLessons.length,
-                ),
-              ),
-              
-              // Special Section for Younger Children
-              if (_isYoungerChild) ...[
-                SliverToBoxAdapter(
-                  child: _buildKidsSection(theme),
+                ],
+                
+                // Bottom Padding
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 100),
                 ),
               ],
-              
-              // Bottom Padding
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 100),
-              ),
-            ],
+            ),
           ),
         ),
-      ),
-      floatingActionButton: FloatingActionGlass(
-        child: const Icon(
-          Icons.play_arrow_rounded,
-          color: Colors.white,
-          size: 32,
+        floatingActionButton: FloatingActionGlass(
+          child: const Icon(
+            Icons.play_arrow_rounded,
+            color: Colors.white,
+            size: 32,
+          ),
+          onPressed: () {
+            // Show a fun animation for kids
+            if (_isYoungerChild) {
+              _showFunAnimation(context);
+            } else {
+              // Navigate to most relevant lesson
+            }
+          },
         ),
-        onPressed: () {
-          // Show a fun animation for kids
-          if (_isYoungerChild) {
-            _showFunAnimation(context);
-          } else {
-            // Navigate to most relevant lesson
-          }
-        },
+        bottomNavigationBar: _buildBottomNavBar(theme),
       ),
-      bottomNavigationBar: _buildBottomNavBar(theme),
     );
   }
 
@@ -727,6 +785,297 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
     );
   }
 
+  // New Quiz Section
+  Widget _buildQuizSection(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Assessment & Quizzes',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () {
+                  // Navigate to all quizzes
+                },
+                child: Text(
+                  'See All',
+                  style: TextStyle(color: theme.colorScheme.secondary),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          BlocBuilder<QuizBloc, QuizState>(
+            builder: (context, state) {
+              if (state is QuizLoading) {
+                return const Center(
+                  child: CircularProgressIndicator(),
+                );
+              } else if (state is QuizzesLoaded) {
+                // If we have quizzes from the BLoC, use them
+                if (state.quizzes.isNotEmpty) {
+                  return ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: state.quizzes.length > 3 ? 3 : state.quizzes.length,
+                    itemBuilder: (context, index) {
+                      final quiz = state.quizzes[index];
+                      return _buildQuizCard(
+                        {
+                          'id': quiz.id,
+                          'title': quiz.title,
+                          'subject': quiz.subject ?? 'General',
+                          'difficulty': quiz.difficulty,
+                          'questionCount': quiz.questions.length,
+                          'timeLimit': quiz.timeLimit,
+                          'color': _getColorForSubject(quiz.subject ?? 'General'),
+                          'progress': 0.0, // Would come from attempts
+                          'attempts': 0, // Would come from attempts
+                        },
+                        theme,
+                        index,
+                      );
+                    },
+                  );
+                }
+              }
+              
+              // Fallback to mock data if BLoC doesn't have quizzes yet
+              return ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _availableQuizzes.length,
+                itemBuilder: (context, index) {
+                  return _buildQuizCard(_availableQuizzes[index], theme, index);
+                },
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuizCard(Map<String, dynamic> quiz, ThemeData theme, int index) {
+    final animation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: Interval(
+          0.2 + (0.1 * index),
+          0.2 + (0.1 * index) + 0.5,
+          curve: Curves.easeOut,
+        ),
+      ),
+    );
+    
+    String difficultyText;
+    Color difficultyColor;
+    
+    switch (quiz['difficulty'] as QuizDifficulty) {
+      case QuizDifficulty.easy:
+        difficultyText = 'Easy';
+        difficultyColor = Colors.green;
+        break;
+      case QuizDifficulty.medium:
+        difficultyText = 'Medium';
+        difficultyColor = Colors.orange;
+        break;
+      case QuizDifficulty.hard:
+        difficultyText = 'Hard';
+        difficultyColor = Colors.red;
+        break;
+      case QuizDifficulty.expert:
+        difficultyText = 'Expert';
+        difficultyColor = Colors.purple;
+        break;
+    }
+    
+    return FadeTransition(
+      opacity: animation,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.3),
+          end: Offset.zero,
+        ).animate(animation),
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: BouncingWidget(
+            onTap: () {
+              _openQuizDetail(context, quiz['id'] as String);
+            },
+            child: GlassmorphicCard(
+              color: (quiz['color'] as Color).withOpacity(0.3),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: (quiz['color'] as Color).withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.quiz,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              quiz['title'] as String,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              quiz['subject'] as String,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: difficultyColor.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: difficultyColor.withOpacity(0.5),
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          difficultyText,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      _buildQuizStatItem(
+                        icon: Icons.question_answer,
+                        value: '${quiz['questionCount']} Questions',
+                        theme: theme,
+                      ),
+                      const SizedBox(width: 16),
+                      _buildQuizStatItem(
+                        icon: Icons.timer,
+                        value: '${(quiz['timeLimit'] as int) ~/ 60} min',
+                        theme: theme,
+                      ),
+                      const SizedBox(width: 16),
+                      if ((quiz['attempts'] as int) > 0)
+                        _buildQuizStatItem(
+                          icon: Icons.replay,
+                          value: '${quiz['attempts']} ${(quiz['attempts'] as int) == 1 ? 'Attempt' : 'Attempts'}',
+                          theme: theme,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Progress',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: Colors.white70,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            LinearPercentIndicator(
+                              percent: quiz['progress'] as double,
+                              lineHeight: 6,
+                              backgroundColor: Colors.white.withOpacity(0.2),
+                              progressColor: difficultyColor,
+                              barRadius: const Radius.circular(3),
+                              padding: EdgeInsets.zero,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      AnimatedGlassmorphicButton(
+                        width: 100,
+                        height: 36,
+                        color: theme.colorScheme.secondary,
+                        borderRadius: 8,
+                        onPressed: () {
+                          _openQuizDetail(context, quiz['id'] as String);
+                        },
+                        child: Text(
+                          (quiz['attempts'] as int) > 0 ? 'Continue' : 'Start',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuizStatItem({
+    required IconData icon,
+    required String value,
+    required ThemeData theme,
+  }) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: Colors.white70,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          value,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: Colors.white70,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildSubjectCard(Map<String, dynamic> subject, ThemeData theme, int index) {
     final animation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
@@ -887,6 +1236,17 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                     builder: (context) => const PricingPage(),
                   ),
                 );
+              } else if (action['id'] == 'quiz') {
+                // Navigate to quiz selection
+                context.read<QuizBloc>().add(LoadQuizzes(
+                  gradeLevel: _mockUser.gradeLevel,
+                  forceRefresh: true,
+                ));
+                
+                // If we have mock quizzes, navigate to the first one
+                if (_availableQuizzes.isNotEmpty) {
+                  _openQuizDetail(context, _availableQuizzes.first['id'] as String);
+                }
               }
             },
             child: GlassmorphicCard(
@@ -1027,6 +1387,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                         borderRadius: 8,
                         onPressed: () {
                           // Resume lesson
+                          _openLessonDetail(context, lesson);
                         },
                         child: Text(
                           'Resume',
@@ -1240,7 +1601,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
   }
 
   Lesson _createMockLesson(Map<String, dynamic> map) {
-    // Creates a minimal Lesson object from the dashboard’s mock map.
+    // Creates a minimal Lesson object from the dashboard's mock map.
     return Lesson(
       id: map['id'] as String,
       title: map['title'] as String,
@@ -1278,6 +1639,39 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       ),
     );
   }
+
+  /* ------------------------------------------------------------------------
+   * Quiz navigation helper
+   * --------------------------------------------------------------------- */
+  void _openQuizDetail(BuildContext ctx, String quizId) {
+    Navigator.push(
+      ctx,
+      MaterialPageRoute(
+        builder: (_) => QuizDetailPage(quizId: quizId),
+      ),
+    );
+  }
+  
+  // Helper to get color for a subject
+  Color _getColorForSubject(String subject) {
+    switch (subject.toLowerCase()) {
+      case 'mathematics':
+        return const Color(0xFF008751); // Green
+      case 'english':
+        return const Color(0xFFFFD700); // Yellow
+      case 'science':
+        return const Color(0xFFCE1126); // Red
+      case 'geography':
+        return const Color(0xFF4CAF50); // Different green
+      case 'history':
+        return const Color(0xFF9C27B0); // Purple
+      case 'agriculture':
+        return const Color(0xFF795548); // Brown
+      default:
+        return const Color(0xFF2196F3); // Blue
+    }
+  }
+  
   // Profile options dialog with subscription options
   void _showProfileOptions(BuildContext context) {
     final theme = Theme.of(context);

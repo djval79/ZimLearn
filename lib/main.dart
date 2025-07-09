@@ -9,7 +9,16 @@ import 'package:logger/logger.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
+// Routing
+import 'core/routing/app_router.dart';
+import 'core/routing/navigation_middleware.dart';
+// Blocs
+import 'features/auth/bloc/auth_bloc.dart';
+import 'features/subscription/bloc/subscription_bloc.dart';
+import 'features/onboarding/bloc/onboarding_bloc.dart';
+import 'features/settings/bloc/settings_bloc.dart';
 // Service locator & app services
 import 'core/services/service_locator.dart';
 // Pages
@@ -63,6 +72,10 @@ Future<void> main() async {
     // Set up BLoC observer
     Bloc.observer = AppBlocObserver();
     
+    // Create navigation middleware registry & router
+    final middlewareRegistry = createDefaultMiddlewareRegistry();
+    final appRouter = AppRouter();
+
     // Set preferred orientations
     await SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
@@ -70,7 +83,12 @@ Future<void> main() async {
     ]);
     
     // Run the app
-    runApp(const ZimLearnApp());
+    runApp(
+      AppWidget(
+        appRouter: appRouter,
+        middlewareRegistry: middlewareRegistry,
+      ),
+    );
   } catch (e, stackTrace) {
     logger.e('Initialization error', error: e, stackTrace: stackTrace);
     // FirebaseCrashlytics.instance.recordError(e, stackTrace, fatal: true);
@@ -79,19 +97,54 @@ Future<void> main() async {
 }
 
 // Hive adapter registration now handled inside StorageService via ServiceLocator
+class AppWidget extends StatelessWidget {
+  final AppRouter appRouter;
+  final NavigationMiddlewareRegistry middlewareRegistry;
 
-class ZimLearnApp extends StatelessWidget {
-  const ZimLearnApp({Key? key}) : super(key: key);
+  const AppWidget({
+    Key? key,
+    required this.appRouter,
+    required this.middlewareRegistry,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return Provider<NavigationMiddlewareRegistry>.value(
+      value: middlewareRegistry,
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<AuthBloc>(
+            create: (_) => sl<AuthBloc>()..add(AuthStarted()),
+          ),
+          BlocProvider<SubscriptionBloc>(
+            create: (_) => sl<SubscriptionBloc>()..add(LoadSubscriptionStatus()),
+          ),
+          BlocProvider<OnboardingBloc>(
+            create: (_) => sl<OnboardingBloc>(),
+          ),
+          BlocProvider<SettingsBloc>(
+            create: (_) => sl<SettingsBloc>()..add(LoadSettingsEvent()),
+          ),
+        ],
+        child: ZimLearnApp(appRouter: appRouter),
+      ),
+    );
+  }
+}
+
+class ZimLearnApp extends StatelessWidget {
+  final AppRouter appRouter;
+  const ZimLearnApp({Key? key, required this.appRouter}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp.router(
       title: 'ZimLearn',
       debugShowCheckedModeBanner: false,
       theme: _buildTheme(),
       darkTheme: _buildDarkTheme(),
       themeMode: ThemeMode.system,
-      home: const DashboardPage(),
+      routerConfig: appRouter.router,
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
