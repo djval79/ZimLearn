@@ -1,0 +1,267 @@
+name: ZimLearn CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # Quality checks: formatting and static analysis
+  quality:
+    name: Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze project source
+        run: flutter analyze
+
+  # Run tests with coverage
+  test:
+    name: Tests with Coverage
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Create mock environment file
+        run: cp assets/.env.example assets/.env
+
+      - name: Generate code
+        run: flutter pub run build_runner build --delete-conflicting-outputs
+
+      - name: Run tests with coverage
+        run: flutter test --coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage/lcov.info
+          fail_ci_if_error: false
+
+      - name: Archive code coverage results
+        uses: actions/upload-artifact@v3
+        with:
+          name: code-coverage-report
+          path: coverage/
+
+  # Build for Android
+  build_android:
+    name: Build Android
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Create environment file
+        run: |
+          echo "${{ secrets.ENV_FILE }}" > assets/.env
+          # If no secret is set, use example file
+          if [ ! -s assets/.env ]; then
+            cp assets/.env.example assets/.env
+          fi
+
+      - name: Generate code
+        run: flutter pub run build_runner build --delete-conflicting-outputs
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: android-release
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+  # Build for iOS
+  build_ios:
+    name: Build iOS
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Create environment file
+        run: |
+          echo "${{ secrets.ENV_FILE }}" > assets/.env
+          # If no secret is set, use example file
+          if [ ! -s assets/.env ]; then
+            cp assets/.env.example assets/.env
+          fi
+
+      - name: Generate code
+        run: flutter pub run build_runner build --delete-conflicting-outputs
+
+      - name: Build iOS
+        run: |
+          flutter build ios --release --no-codesign
+
+      - name: Archive iOS build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ios-build
+          path: build/ios/iphoneos
+
+  # Build for Web
+  build_web:
+    name: Build Web
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Create environment file
+        run: |
+          echo "${{ secrets.ENV_FILE }}" > assets/.env
+          # If no secret is set, use example file
+          if [ ! -s assets/.env ]; then
+            cp assets/.env.example assets/.env
+          fi
+
+      - name: Generate code
+        run: flutter pub run build_runner build --delete-conflicting-outputs
+
+      - name: Build Web
+        run: flutter build web --release --base-href / --pwa-strategy offline-first
+
+      - name: Upload Web Build
+        uses: actions/upload-artifact@v3
+        with:
+          name: web-build
+          path: build/web
+
+  # Deploy to Firebase App Distribution (only on main branch)
+  deploy_to_firebase:
+    name: Deploy to Firebase
+    needs: [build_android, build_ios]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Download Android build
+        uses: actions/download-artifact@v3
+        with:
+          name: android-release
+          path: android-build
+
+      - name: Setup Firebase CLI
+        uses: w9jds/firebase-action@master
+        with:
+          args: setup:ci
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      - name: Deploy to Firebase App Distribution
+        uses: w9jds/firebase-action@master
+        with:
+          args: appdistribution:distribute android-build/app-release.apk --app ${{ secrets.FIREBASE_APP_ID }} --groups "internal-testers" --release-notes "Automated build from GitHub Actions"
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+  # Notify on completion
+  notify:
+    name: Notify on completion
+    needs: [build_android, build_ios, build_web]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check build status
+        id: check
+        run: |
+          if [[ "${{ needs.build_android.result }}" == "success" && "${{ needs.build_ios.result }}" == "success" && "${{ needs.build_web.result }}" == "success" ]]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Slack Notification on Success
+        if: steps.check.outputs.status == 'success' && github.ref == 'refs/heads/main'
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_CHANNEL: ci-cd
+          SLACK_COLOR: good
+          SLACK_ICON: https://github.com/djval79.png
+          SLACK_MESSAGE: 'ZimLearn build succeeded! :rocket:'
+          SLACK_TITLE: Build Success
+          SLACK_USERNAME: GitHub Actions
+
+      - name: Slack Notification on Failure
+        if: steps.check.outputs.status == 'failure' && github.ref == 'refs/heads/main'
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_CHANNEL: ci-cd
+          SLACK_COLOR: danger
+          SLACK_ICON: https://github.com/djval79.png
+          SLACK_MESSAGE: 'ZimLearn build failed! :x:'
+          SLACK_TITLE: Build Failure
+          SLACK_USERNAME: GitHub Actions
