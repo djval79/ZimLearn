@@ -13,6 +13,7 @@ import '../../../data/models/lesson.dart';
 import '../../../data/models/subscription.dart';
 import '../../common/widgets/glassmorphic_widgets.dart';
 import '../../subscription/pages/pricing_page.dart';
+import '../../lessons/pages/lesson_detail_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({Key? key}) : super(key: key);
@@ -747,7 +748,11 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
         ).animate(animation),
         child: BouncingWidget(
           onTap: () {
-            // Navigate to subject detail
+            _openSubjectLessons(
+              context,
+              subjectId: subject['id'] as String,
+              subjectName: subject['name'] as String,
+            );
           },
           child: _isYoungerChild 
               ? _buildKidFriendlySubjectCard(subject, theme)
@@ -952,7 +957,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           child: BouncingWidget(
             onTap: () {
-              // Navigate to lesson
+              _openLessonDetail(context, lesson);
             },
             child: GlassmorphicCard(
               child: Row(
@@ -1217,6 +1222,62 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
     );
   }
   
+  /* ------------------------------------------------------------------------
+   * Navigation helpers
+   * --------------------------------------------------------------------- */
+
+  void _openLessonDetail(BuildContext ctx, Map<String, dynamic> lessonMap) {
+    final lesson = _createMockLesson(lessonMap);
+    Navigator.push(
+      ctx,
+      MaterialPageRoute(
+        builder: (_) => LessonDetailPage(
+          lesson: lesson,
+          isYoungerChild: _isYoungerChild,
+        ),
+      ),
+    );
+  }
+
+  Lesson _createMockLesson(Map<String, dynamic> map) {
+    // Creates a minimal Lesson object from the dashboard’s mock map.
+    return Lesson(
+      id: map['id'] as String,
+      title: map['title'] as String,
+      description:
+          'Auto-generated description for ${map['title'] as String}.', // placeholder
+      subject: (map['subject'] as String).toLowerCase(),
+      gradeLevel: _mockUser.gradeLevel,
+      contentType: ContentType.text,
+      progress: (map['progress'] as double?) ?? 0.0,
+      sequence: 1,
+      duration: const Duration(minutes: 15),
+      hasVideoContent: false,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  void _openSubjectLessons(BuildContext ctx,
+      {required String subjectId, required String subjectName}) {
+    Navigator.push(
+      ctx,
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(
+            title: Text(subjectName),
+          ),
+          body: Center(
+            child: Text(
+              'Mock lesson list for $subjectName coming soon.',
+              style: Theme.of(ctx).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
   // Profile options dialog with subscription options
   void _showProfileOptions(BuildContext context) {
     final theme = Theme.of(context);
