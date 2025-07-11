@@ -4,10 +4,12 @@
   "description": "Backend for ZimLearn Application",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "deploy": "vercel --prod"
   },
   "dependencies": {
-    "express": "^4.17.1",
-    "body-parser": "^1.19.0"
+    "body-parser": "^1.19.0",
+    "express": "^4.21.2",
+    "vercel": "^44.4.1"
   }
 }

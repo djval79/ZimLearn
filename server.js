@@ -1,57 +1,96 @@
 const express = require('express');
-const bodyParser = require('body-parser');
-
+const path = require('path');
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3001;
 
-// In-memory user store (for demonstration purposes)
-const users = [];
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'ZimLearn')));
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+// ... (keep the existing response and chat logic)
 
-// Serve static files from the 'public' directory
-app.use(express.static(__dirname));
+// Dummy user data
+let users = [
+    { name: 'Test Student', email: 'student@example.com', password: 'Password1', role: 'student', enrolledSubjects: ['English', 'Mathematics'], submissions: [] }
+];
 
-
-// Registration endpoint
+// Signup
 app.post('/signup', (req, res) => {
-    const { name, email, password } = req.body;
-
-    if (!name || !email || !password) {
-        return res.status(400).json({ message: 'Please fill in all fields.' });
-    }
-
+    const { name, email, password, role } = req.body;
     if (users.find(user => user.email === email)) {
-        return res.status(400).json({ message: 'User with this email already exists.' });
+        return res.status(400).json({ message: 'User already exists' });
     }
-
-    const newUser = { name, email, password };
+    const newUser = { name, email, password, role, enrolledSubjects: [], children: [], submissions: [] };
     users.push(newUser);
-
-    console.log('User registered:', newUser);
-    res.status(201).json({ message: 'Registration successful! You can now log in.'});
+    res.status(201).json({ message: 'User created successfully' });
 });
 
-// Login endpoint
+// Login
 app.post('/login', (req, res) => {
     const { email, password } = req.body;
+    const user = users.find(user => user.email === email && user.password === password);
+    if (user) {
+        const userToSend = { name: user.name, email: user.email, role: user.role, enrolledSubjects: user.enrolledSubjects, children: user.children };
+        res.json({ message: 'Login successful', user: userToSend });
+    } else {
+        res.status(401).json({ message: 'Invalid credentials' });
+    }
+});
 
-    if (!email || !password) {
-        return res.status(400).json({ message: 'Please provide email and password.' });
+// Link child account
+app.post('/link-child', (req, res) => {
+    const { parentEmail, childEmail } = req.body;
+    const parent = users.find(user => user.email === parentEmail);
+    const child = users.find(user => user.email === childEmail);
+
+    if (!parent || !child) {
+        return res.status(404).json({ message: 'Parent or child not found' });
+    }
+    if (child.role !== 'student') {
+        return res.status(400).json({ message: 'The linked account must be a student account.' });
     }
 
-    const user = users.find(user => user.email === email);
-
-    if (!user || user.password !== password) {
-        return res.status(401).json({ message: 'Invalid credentials.' });
+    if (!parent.children.includes(childEmail)) {
+        parent.children.push(childEmail);
     }
     
-    console.log('User logged in:', user);
-    res.status(200).json({ message: 'Login successful!', user: { name: user.name, email: user.email }});
+    const childData = { name: child.name, progress: `${child.enrolledSubjects.length * 10}%`, enrolledSubjects: child.enrolledSubjects };
+    
+    res.json({ message: `Successfully linked with ${child.name}.`, parent: parent, childData: childData });
+});
+
+// Submit an answer
+app.post('/submit-answer', (req, res) => {
+    const { studentEmail, subject, paper, question, answer } = req.body;
+    const student = users.find(user => user.email === studentEmail);
+
+    if (!student) {
+        return res.status(404).json({ message: 'Student not found.' });
+    }
+
+    const newSubmission = {
+        subject,
+        paper,
+        question,
+        answer,
+        submittedAt: new Date().toISOString()
+    };
+    student.submissions.push(newSubmission);
+    res.json({ message: 'Your work has been submitted successfully.' });
+});
+
+
+// Get all students and their submissions
+app.get('/students', (req, res) => {
+    const students = users.filter(user => user.role === 'student');
+    const studentData = students.map(student => ({ 
+        name: student.name, 
+        progress: `${student.enrolledSubjects.length * 10}%`,
+        submissions: student.submissions
+    }));
+    res.json(studentData);
 });
 
 
 app.listen(port, () => {
-    console.log(`ZimLearn server listening at http://localhost:${port}`);
+    console.log(`ZimLearn is running on http://localhost:${port}`);
 });
