@@ -2,14 +2,18 @@
   "name": "zimlearn-backend",
   "version": "1.0.0",
   "description": "Backend for ZimLearn Application",
-  "main": "server.js",
+  "main": "ZimLearn/server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node ZimLearn/server.js",
     "deploy": "vercel --prod"
   },
   "dependencies": {
     "body-parser": "^1.19.0",
+    "cors": "^2.8.5",
     "express": "^4.21.2",
     "vercel": "^44.4.1"
+  },
+  "config": {
+    "port": "3001"
   }
 }
